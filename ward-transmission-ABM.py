@@ -31,7 +31,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-#Takes 5 command line arguements- height and width of ward, number of iterations, entry rate param and risk of infection
+#Takes 6 command line arguements- height and width of ward, number of iterations, entry rate param and risk of infection
 height = int(sys.argv[1])
 width = int(sys.argv[2])
 n_iterations = int(sys.argv[3])
@@ -39,7 +39,7 @@ entry_rate = int(sys.argv[4])
 risk_transmission = float(sys.argv[5])
 image = str2bool(sys.argv[6])
 
-#Create Klebsiella class - 5 arguments are inherited from the command line
+#Create Klebsiella class - 6 arguments are inherited from the command line
 class Klebsiella:
 	def __init__(self, height, width, n_iterations, entry_rate, risk_transmission, image):
 		self.height = height
@@ -63,7 +63,7 @@ class Klebsiella:
 		#Iterate through time intervals (days)
 		for i in range(self.n_iterations):
 			#Remove outgoing patients (if discharge day == i)
-			remove = [bed for bed, date in self.patient_bed.items() if date[1] == i]
+			remove =[bed for bed, date in self.patient_bed.items() if date[1] == i]
 			#Replace beds in empty list
 			self.empty_beds.extend(remove)
 			for k in remove:
@@ -72,9 +72,9 @@ class Klebsiella:
 			
 			#In each day admit n new patients, where n is sampled from poisson
 			new_patients = numpy.random.poisson(entry_rate)
-			for n in range(new_patients):
-				#Check number of new patients is greater than zero and does not exceed bed capacity
-				if i>0 and n>0 and len(self.patient_bed.keys())+new_patients <= len(self.all_beds) :
+			#Check number of new patients is greater than zero and does not exceed bed capacity
+			if i>0 and new_patients>0 and len(self.patient_bed.keys())+new_patients <= len(self.all_beds) :
+				for n in range(1, new_patients+1):
 					#Give unique ID to each patient
 					ID = str(i)+'.'+str(n)
 					#Discharge day - sample from lognormal distribution (and logged) +1 so no zeros
@@ -84,6 +84,9 @@ class Klebsiella:
 					#Patient bed dict, values are ID, discharge day, infection status at, day of entry
 					self.patient_bed[self.empty_beds[0]] = [ID, i+discharge, entry_status, i]
 					#patient dictionary for survival analysis
+					#values[0:2] remain unchanged
+					#value[3] modified if patient becomes infected
+					#value[4] gives day of infection, otherwise remains length of stay
 					self.patients[ID] = [i, discharge, entry_status, entry_status, discharge]
 					#Remove now occupied bed from empty bed list
 					self.empty_beds.remove(self.empty_beds[0])
