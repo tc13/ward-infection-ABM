@@ -63,8 +63,8 @@ class Klebsiella:
 		for i in range(self.n_iterations):
 			#Remove outgoing patients (if discharge day == i)
 			remove =[bed for bed, date in self.beds.items() if date[1] == i]
-			#Replace beds in empty list
-			self.empty_beds.extend(remove)
+			#Replace beds at the front of empty list
+			self.empty_beds = remove + self.empty_beds
 			for k in remove:
 				#Remove empty bed from patient bed dict
 				self.beds.pop(k, None)
