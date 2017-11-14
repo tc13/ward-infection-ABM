@@ -3,10 +3,8 @@
 
 import itertools
 import random
-import copy
 import numpy
 import sys
-import math
 from lifelines import KaplanMeierFitter
 import argparse
 import matplotlib.pyplot as plt
@@ -78,8 +76,8 @@ class Klebsiella:
 				for n in range(1, new_patients+1):
 					#Give unique ID to each patient
 					ID = str(i)+'.'+str(n)
-					#Discharge day - sample from lognormal distribution (and logged) +1 so no zeros
-					discharge = int(math.log(numpy.random.lognormal(5,2)))+1
+					#Discharge day - sample from lognormal distribution (logged)- minimum value clipped at 1
+					discharge = int(numpy.clip(numpy.log(numpy.random.lognormal(5,2)), 1, None))
 					#Infection Status at entry (sampled from binomial)
 					entry_status= numpy.random.binomial(1,0.6)
 					#Patient bed dict, values are ID, discharge day, infection status at, day of entry
