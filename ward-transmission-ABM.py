@@ -46,10 +46,11 @@ class Klebsiella:
 		self.width = width
 		self.n_iterations = n_iterations
 		self.patients = {}
-		self.patient_bed = {}
+		self.beds = {}
 		self.entry_rate = entry_rate
 		self.risk_transmission = risk_transmission
 		self.image = image
+		self.bed_infected = []
 
 	#Function to populate the ward with beds of given coordinates
 	def populate(self):
@@ -63,17 +64,17 @@ class Klebsiella:
 		#Iterate through time intervals (days)
 		for i in range(self.n_iterations):
 			#Remove outgoing patients (if discharge day == i)
-			remove =[bed for bed, date in self.patient_bed.items() if date[1] == i]
+			remove =[bed for bed, date in self.beds.items() if date[1] == i]
 			#Replace beds in empty list
 			self.empty_beds.extend(remove)
 			for k in remove:
 				#Remove empty bed from patient bed dict
-				self.patient_bed.pop(k, None)
+				self.beds.pop(k, None)
 			
 			#In each day admit n new patients, where n is sampled from poisson
 			new_patients = numpy.random.poisson(entry_rate)
 			#Check number of new patients is greater than zero and does not exceed bed capacity
-			if i>0 and new_patients>0 and len(self.patient_bed.keys())+new_patients <= len(self.all_beds) :
+			if i>0 and new_patients>0 and len(self.beds.keys())+new_patients <= len(self.all_beds) :
 				for n in range(1, new_patients+1):
 					#Give unique ID to each patient
 					ID = str(i)+'.'+str(n)
@@ -82,7 +83,7 @@ class Klebsiella:
 					#Infection Status at entry (sampled from binomial)
 					entry_status= numpy.random.binomial(1,0.6)
 					#Patient bed dict, values are ID, discharge day, infection status at, day of entry
-					self.patient_bed[self.empty_beds[0]] = [ID, i+discharge, entry_status, i]
+					self.beds[self.empty_beds[0]] = [ID, i+discharge, entry_status, i]
 					#patient dictionary for survival analysis
 					#values[0:2] remain unchanged
 					#value[3] modified if patient becomes infected
@@ -93,13 +94,15 @@ class Klebsiella:
 			
 			#Create Risk of infection from other patients
 			#If at least one infected patient in the ward
-			if 1 in [j[2] for j in self.patient_bed.values()]:
+			if 1 in [j[2] for j in self.beds.values()]:
+				#Check number of infected patients (have been in ward for >0 days)
+				n_infec= len(self.bed_infected)
 				#Iterate through dictionary of occuped patient beds
-				for key, value in self.patient_bed.iteritems():
+				for key, value in self.beds.iteritems():
 					#Checks patients are uninfected and have been in the ward for at least one iteration
 					if value[2] == 0 and i-value[3] > 0:
-						#Risk of infection per day sampled from binomial (eg. 5%)
-						new_infect_status = numpy.random.binomial(1,self.risk_transmission)
+						#Risk of infection per day sampled from binomial (eg. 2.5%) - to the power of n infected patients
+						new_infect_status = numpy.random.binomial(1,1-(1-self.risk_transmission)**n_infec)
 						#If patient newly infected...
 						if new_infect_status == 1:
 							#Replace patient infection status in bed dict
@@ -110,21 +113,21 @@ class Klebsiella:
 							self.patients[value[0]][4] = i-self.patients[value[0]][0] 
 						
 			#Check infection numbers at the end of each day	
-			bed_infected = []
+			self.bed_infected = []
                         bed_uninfected = []
 			infected_dict = {}
-			for key, value in self.patient_bed.iteritems():
+			for key, value in self.beds.iteritems():
 				#Infection status of beds
 				if value[2] == 1:
 				#If positive append to infected bed list
-					bed_infected.append(key)
+					self.bed_infected.append(key)
 				#Else append to uninfected bed list
 				else:
 					bed_uninfected.append(key)
 			
 			#dict of staus - for visualisation
 			infected_dict.update({el:1 for el in self.empty_beds}) 
-			infected_dict.update({el:2 for el in bed_infected})
+			infected_dict.update({el:2 for el in self.bed_infected})
 			infected_dict.update({el:3 for el in bed_uninfected})
 			
 			if self.image ==True:
