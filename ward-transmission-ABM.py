@@ -16,13 +16,15 @@ parser.add_argument('-H', '--height', default=10, required=False, dest="height",
 parser.add_argument('-W', '--width', default=10, required=False, dest="width", metavar="<ward width>", type=int,help="width, ward size is height*width, integer, default=10")
 parser.add_argument('-I', '--iterations', default=300, required=False, dest="iters", metavar="<number of interations>",type=int,help="number of model iterations (days), integer, default=300")
 parser.add_argument('-E', '--entry', default=3, required=False, dest="entry", metavar="<entry rate>",type=int,help="lamda param for poisson entry process, integer, default=3")
-parser.add_argument('-M', '--median-stay', default=5, required=False, dest="stay", metavar="<median stay length>",type=int,help="median patient stay (days), integer, default=5")
 parser.add_argument('-R', '--risk', default=0.025, required=False, dest="risk", metavar="<risk of transmission>",type=float,help="risk of infection per-person per-day, float, default=0.025")
+parser.add_argument('-ER', '--entryRisk', default=0.6, required=False, dest="entry_risk", metavar="<entry infection risk>",type=float,help="risk of infection at entry, float, default=0.6")
+parser.add_argument('-P', '--prevalence', default="f", required=False, dest="prev", metavar="<show prevalence each iteration>",help="show prevalence each iteration, boolean, default=False")
 parser.add_argument('-G', '--graphic', default='f', required=False, dest="graph", metavar="<show ward graphic>",type=str,help="show graphic of ward composition, boolean, default=False")
 parser.add_argument('-KM', '--kaplan', default='f', required=False, dest="KM", metavar="<Kaplan-Meier survival output>",type=str,help="Kaplan-Meier table, plot, median or false (default)")
-parser.add_argument('-D', '--distribution', default='log-normal', required=False, dest="dist", metavar="<distribution stay length>",type=str,help="Distribution of length stay, log-normal (default), weibull, exponential, gamma")
-parser.add_argument('--data', default=None, required=False, dest="data", metavar="<file of stay lengths>",help="file where each line is length of stay (days)")
-parser.add_argument('-P', '--prevalence', default="f", required=False, dest="prev", metavar="<show prevalence each iteration>",help="show prevalence each iteration, boolean, default=False")
+parser.add_argument('-A', '--average-stay', default=5, required=False, dest="stay", metavar="<average stay length>",type=int,help="depending on distribution, median (log-normal, uniform), mean (exponential) or scale (gamma, weibull),  integer, default=5")
+parser.add_argument('-D', '--distribution', default='log-normal', required=False, dest="dist", metavar="<distribution-stay>",type=str,help="Distribution of stay lengths, log-normal (default), weibull, exponential, gamma, uniform or data (set file path with --data flag)")
+parser.add_argument('-P2', '--parameter2', default=2, required=False, dest="param2", metavar="<second parameter>",type=int,help="Second parameter, variance for log-normal and shape parameter for weibull and gamma, integer, default=2")
+parser.add_argument('--data', default=None, required=False, dest="data", metavar="<file of stay lengths>",help="If data specified with -D, path to file where each line is length of stay (days)")
 args = parser.parse_args()
 
 #Boolean Parser
@@ -34,7 +36,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-#9 optional command line arguements- assumes default value if not specified
+#Optional command line arguments- assumes default value if not specified
 height = args.height
 width = args.width
 n_iterations = args.iters
@@ -46,6 +48,8 @@ KM = args.KM.lower()
 distribution = args.dist.lower()
 data= args.data
 prevalence = str2bool(args.prev)
+param2 = args.param2
+entry_risk = args.entry_risk
 
 #Check list of input stay lengths in data
 data_list = []
@@ -56,7 +60,7 @@ if data != None:
 			data_list.append(num)
 #Create Klebsiella class
 class Klebsiella:
-	def __init__(self, height, width, n_iterations, entry_rate, median_stay, risk_transmission, image, KM, distribution, data, prevalence):
+	def __init__(self, height, width, n_iterations, entry_rate, median_stay, risk_transmission, image, KM, distribution, data, prevalence, param2, entry_risk):
 		self.height = height
 		self.width = width
 		self.n_iterations = n_iterations
@@ -71,6 +75,8 @@ class Klebsiella:
 		self.distribution = distribution
 		self.data= data
 		self.prevalence = prevalence
+                self.param2 = param2
+                self.entry_risk = entry_risk
 
 	#Function to populate the ward with beds of given coordinates
 	def populate(self):
@@ -93,15 +99,18 @@ class Klebsiella:
 			
 			#In each day admit n new patients, where n is sampled from poisson
 			new_patients = numpy.random.poisson(entry_rate)
-			#Check number of new patients is greater than zero and does not exceed bed capacity
-			if i>0 and new_patients>0 and len(self.beds.keys())+new_patients <= len(self.all_beds) :
-				for n in range(1, new_patients+1):
+			#Check number of empty beds and cap maximum entrants
+                        if new_patients > len(self.empty_beds):
+                                new_patients = len(self.empty_beds)
+                        #Check number of new patients is greater than zero
+			if i>0 and new_patients>0 :
+			        for n in range(1, new_patients+1):
 					#Give unique ID to each patient
 					ID = str(i)+'.'+str(n)
 					#Discharge day - call dist function - sample from either log-normal, wiebull, gamma or exponential dists
-					discharge = dist(self.distribution, self.median_stay, self.data)
+					discharge = dist(self.distribution, self.median_stay, self.data, self.param2)
 					#Infection Status at entry (sampled from binomial)
-					entry_status= numpy.random.binomial(1,0.6)
+					entry_status= numpy.random.binomial(1,self.entry_risk)
 					#Patient bed dict, values are ID, discharge day, infection status at, day of entry
 					self.beds[self.empty_beds[0]] = [ID, i+discharge, entry_status, i]
 					#patient dictionary for survival analysis
@@ -145,12 +154,13 @@ class Klebsiella:
 				else:
 					bed_uninfected.append(key)
 			
-			#dict of staus - for visualisation
-			infected_dict.update({el:1 for el in self.empty_beds}) 
-			infected_dict.update({el:2 for el in self.bed_infected})
-			infected_dict.update({el:3 for el in bed_uninfected})
 			#If image flag turned on - use plot function
 			if self.image ==True:
+                                #dict of staus - for visualisation
+                                infected_dict = {}
+                                infected_dict.update({el:1 for el in self.empty_beds})
+                                infected_dict.update({el:2 for el in self.bed_infected})
+                                infected_dict.update({el:3 for el in bed_uninfected})
 				plot(infected_dict, i, self.height, self.width)
 			#If prevalence turned on - print values
 			if self.prevalence == True:
@@ -187,19 +197,21 @@ class Klebsiella:
 			pass
 
 #Set distribution of length of stay
-def dist(d, median, data):
+def dist(d, median, data, param2):
 	if d == "log-normal":
-		return int(numpy.clip(numpy.log(numpy.random.lognormal(median,2)), 1, None))
+		return int(numpy.clip(numpy.log(numpy.random.lognormal(median,param2)), 1, None))
 	elif d == "exponential":
 		return int(numpy.clip(numpy.random.exponential(median), 1, None))
 	elif d == "gamma":
-		return int(numpy.clip(numpy.random.gamma(median), 1, None))
+		return int(numpy.clip(numpy.random.gamma(param2, median), 1, None))
 	elif d== "weibull":
-		return int(numpy.clip(median*numpy.random.weibull(1), 1, None))
+		return int(numpy.clip(median*numpy.random.weibull(param2), 1, None))
+        elif d== "uniform":
+                return int(numpy.random.uniform(1, (median-0.5)*2))
 	elif d== "data":
 		return int(numpy.clip(random.choice(data), 1, None))
 	else:
-		raise ValueError("Distribution must be log-normal, gamma, exponential, weibull or data")
+		raise ValueError("Distribution must be log-normal, gamma, exponential, weibull, uniform or data")
 
 #Plot ward grid each iteration
 def plot(infection_dict, i, height, width):
@@ -221,7 +233,8 @@ def plot(infection_dict, i, height, width):
 
 
 #Run model - params inherited from command line arguments
-run_1 = Klebsiella(height, width, n_iterations, entry_rate, median_stay, risk_transmission, image, KM, distribution, data_list, prevalence)
+run_1 = Klebsiella(height, width, n_iterations, entry_rate, median_stay, risk_transmission, image, KM, distribution, data_list, prevalence, param2, entry_risk)
 run_1.populate()
 run_1.admit()
-run_1.survival()
+if KM in ["plot", "median", "table"] ==True:
+    run_1.survival()
