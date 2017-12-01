@@ -236,7 +236,11 @@ class Klebsiella:
                         plt.show()
                 #Produce edge distribution (offspring distribution, or secondary cases)
                 elif self.network == "distribution":
-                        print DG.out_degree()
+                        out_degree= DG.out_degree()
+                        out_degree_array = numpy.array([el[1] for el in out_degree])
+                        #print 'mean = {}, max = {}, min = {}'.format(int(numpy.mean(out_degree_array)), max(out_degree_array), min(out_degree_array))
+                        plt.hist(out_degree_array)
+                        plt.show()
 
 
 #Set distribution of length of stay
