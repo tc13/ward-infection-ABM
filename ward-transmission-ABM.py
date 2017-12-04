@@ -10,6 +10,8 @@ import argparse
 import matplotlib.pyplot as plt
 #from matplotlib import interactive
 import networkx as nx
+from scipy.optimize import minimize
+import scipy.stats as stats
 
 #Argparse
 parser = argparse.ArgumentParser(description="Individal Based Model of AMR introduction and spread in a hospital ward. \n \n Author Tom Crellen (tomcrellen@gmail.com) MORU Postdoc")
@@ -26,7 +28,7 @@ parser.add_argument('-A', '--average-stay', default=5, required=False, dest="sta
 parser.add_argument('-D', '--distribution', default='log-normal', required=False, dest="dist", metavar="<distribution-stay>",type=str,help="Distribution of stay lengths, log-normal (default), weibull, exponential, gamma, uniform or data (set file path with --data flag)")
 parser.add_argument('-P2', '--parameter2', default=2, required=False, dest="param2", metavar="<second parameter>",type=int,help="Second parameter, variance for log-normal and shape parameter for weibull and gamma, integer, default=2")
 parser.add_argument('--data', default=None, required=False, dest="data", metavar="<file of stay lengths>",help="If data specified with -D, path to file where each line is length of stay (days)")
-parser.add_argument('-N', '--network', default='f', type=str, required=False, dest="network", metavar="<network analysis>",help="perform network analysis (false, default)")
+parser.add_argument('-N', '--network', default='f', type=str, required=False, dest="network", metavar="<network analysis>",help="perform network analysis (false, default), graph (of directed transmission network), distribution (histogram of out-degrees), parameters (mu and k from neg-binom)")
 args = parser.parse_args()
 
 #Boolean Parser
@@ -235,12 +237,33 @@ class Klebsiella:
                         nx.draw_networkx_labels(DG, pos, node_labels, font_size=12)
                         plt.show()
                 #Produce edge distribution (offspring distribution, or secondary cases)
-                elif self.network == "distribution":
+                else: 
                         out_degree= DG.out_degree()
                         out_degree_array = numpy.array([el[1] for el in out_degree])
                         #print 'mean = {}, max = {}, min = {}'.format(int(numpy.mean(out_degree_array)), max(out_degree_array), min(out_degree_array))
-                        plt.hist(out_degree_array)
-                        plt.show()
+                        
+                        if self.network == "distribution":
+                                plt.hist(out_degree_array)
+                                plt.show()
+                        #Maximum likelihood estimator for negative binomial
+                        elif self.network == "parameters":
+                                #define MLE function
+                                def MLE(params):
+                                        mu1 = params[0]
+                                        k1 = params[1]
+                                        p1 = k1/(k1+mu1)
+                                        #Calculate log-likelihood as the negative sum of the log probablity-mass-function
+                                        logLik = -numpy.sum( stats.nbinom.logpmf(out_degree_array, k1, p1))
+                                        return(logLik)
+
+                                #estimate mu and k parameters from negative binomial
+                                init_mu = numpy.mean(out_degree_array)
+                                #moment estimator for k
+                                init_k = numpy.mean(out_degree_array)**2/(numpy.var(out_degree_array)+numpy.mean(out_degree_array))
+                                #Run MLE function
+                                results = minimize(MLE, [init_mu,init_k], method='L-BFGS-B', bounds=((0, None),(0, None)))
+                                #print esimates
+                                print 'mu = {}, k = {}'.format(results.x[0], results.x[1])
 
 
 #Set distribution of length of stay
@@ -283,5 +306,5 @@ run_1.populate()
 run_1.admit()
 if KM in ["plot", "median", "table"]:
         run_1.survival()
-if network_cmd in ["graph", "distribution"]:
+if network_cmd in ["graph", "distribution", "parameters"]:
         run_1.network_run()
