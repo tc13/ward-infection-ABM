@@ -50,7 +50,6 @@ class R0:
                 self.beds = {}
                 self.stay_distribution = dist(distribution, average_stay, data_list, param2, 100000)
                 self.contact_list = []
-                self.empty_beds = []
                 self.replicate = replicate
                 self.bed_infected = []
 
@@ -64,10 +63,8 @@ class R0:
                 #Bed dictionary
                 for q in range(1, len(self.ward)-1):
                         self.beds[self.ward[q]] = [ID[q], int(discharge[q])]
-                
                 #Introduce the index case
-                discharge = int(numpy.random.choice(self.stay_distribution))
-                #self.patients["index"] = [0, discharge, 1]
+                discharge = int(numpy.random.choice(self.stay_distribution))              
                 self.beds[self.ward[0]] = ["index", discharge]
                 self.bed_infected.append(self.ward[0])
                 self.bed_uninfected = self.ward[1:] 
@@ -79,22 +76,14 @@ class R0:
                                 n_infectors = len(self.bed_infected)
                                 #For each uninfected, geometric probability of infection
                                 transmission_array = numpy.random.geometric(self.risk, size=len(self.bed_uninfected))
+                                #keep if success is <= number of infectors
                                 transmission_array[transmission_array > n_infectors] = 0
-                                transmission_events = [j for j, event in enumerate(transmission_array) if event > 0]                         
-                                transmission_bed_coords = [self.bed_uninfected[c] for c in transmission_events] 
-                                #For each successful transmission event
-                                #for case in transmission_bed_coords:
-                                        #Update bed dictionary with new status
-                                        #self.beds[case][2]=1
-                                        #id_victim = self.beds[case][0]
-                                        #Add to contact list
-                                        #identity = self.bed_infected[transmission_array[self.bed_uninfected.index(case)]-1]
-                                        #self.contact_list.append([identity, id_victim])                                        
-                                        #Update patient dictionary with new status
-                                        #self.patients[id_victim][2]=1
-                                        #Add to infected bed list
+                                transmission_events = [j for j, event in enumerate(transmission_array) if event > 0] 
+                                #get bed coordinates of successful transmission events
+                                transmission_bed_coords = [self.bed_uninfected[c] for c in transmission_events]
+                                #Add to bed infected list
                                 self.bed_infected = self.bed_infected +list(transmission_bed_coords)
-                                        #Remove from uninfected bed list
+                                #Remove from uninfected bed list
                                 self.bed_uninfected = [x for x in self.bed_uninfected if x not in transmission_bed_coords]
                                                
                         #Print output
@@ -109,22 +98,18 @@ class R0:
                         remove = [bed for bed, date in self.beds.items() if date[1] <= day]
                         self.bed_infected = [bed for bed in self.bed_infected if bed not in remove]
                         self.bed_uninfected = [bed for bed in self.bed_uninfected if bed not in remove]
-                        self.empty_beds = self.empty_beds + remove
-
-                        #Admit new patients
-                        #for spare in range(len(self.empty_beds)):
+                       
+                        #Admit new patients (equal to number of spare beds)                     
+                        spares = len(remove)
                         #Give unique ID to patients
-                        spares = len(self.empty_beds)
                         ID = [str(day)+"."+str(spare) for spare in range(spares)]
-                                #Sample discharge date from distribution
+                        #Sample discharge date from distribution
                         discharge = numpy.random.choice(self.stay_distribution, size= spares)
-                                #Patient dictionary- day of entry, length of stay, infect status
-                                #self.patients[ID] = [day, discharge, 0]
-                                #Bed dictionary
+                        #Update bed dictionary with new patients
                         for bed in range(spares):
-                                self.beds[self.empty_beds[bed]] = [ID[bed], int(discharge[bed])]
-                        self.bed_uninfected = self.bed_uninfected + self.empty_beds[0:spares]
-                        self.empty_beds = self.empty_beds[spares:]
+                                self.beds[remove[bed]] = [ID[bed], int(discharge[bed])]
+                        #add to uninfected list and remove empty beds
+                        self.bed_uninfected = self.bed_uninfected + remove
 
 #Set distribution of length of stay
 def dist(d, average, data, param2, size):
