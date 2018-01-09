@@ -11,7 +11,7 @@ import random
 parser=argparse.ArgumentParser(description="Simulation of single infection in ward \n \n Author Tom Crellen (tomcrellen@gmail.com) MORU Postdoc")
 parser.add_argument('-H', '--height', default=10, required=False, dest="height", metavar="<ward height>", type=int,help="height, ward size is height*width, integer, default=10")
 parser.add_argument('-W', '--width', default=10, required=False, dest="width", metavar="<ward width>", type=int,help="width, ward size is height*width, integer, default=10")
-parser.add_argument('-T', '--time', default=500, required=False, dest="time", metavar="<maximum days>",type=int,help="number of model days (iterations), integer, default=500")
+parser.add_argument('-T', '--time', default=300, required=False, dest="time", metavar="<maximum days>",type=int,help="number of model days (iterations), integer, default=300")
 parser.add_argument('-R', '--replicates', default=1000, required=False, dest="replicates", metavar="<model replicates>",type=int,help="number of model replications, integer, default=1000")
 parser.add_argument('-TR', '--transmission-risk', default=0.025, required=False, dest="risk", metavar="<risk of transmission>",type=float,help="risk of infection per-person per-day, float, default=0.025")
 parser.add_argument('-D', '--distribution', default='log-normal', required=False, dest="dist", metavar="<distribution-stay>",type=str,help="Distribution of stay lengths, log-normal (default), weibull, exponential, gamma, uniform or data (set file path with --data flag)")
@@ -52,20 +52,20 @@ class R0:
                 self.contact_list = []
                 self.replicate = replicate
                 self.bed_infected = []
+                self.transmission = []
 
     #Function to populate the ward with beds of given coordinates (n= width*height)
         def populate(self):
                 self.ward = list(itertools.product(range(self.width), range(self.height)))               
                 #Give unique ID to patients
-                ID = ["0."+str(q) for q in range(1, len(self.ward))]
+                ID = ["0."+str(q) for q in range(len(self.ward))]
                 #Sample discharge date from distribution
-                discharge = numpy.random.choice(self.stay_distribution, size=len(self.ward)-1)       
+                discharge = numpy.random.choice(self.stay_distribution, size=len(self.ward))       
                 #Bed dictionary
-                for q in range(1, len(self.ward)-1):
+                for q in range(1, len(self.ward)):
                         self.beds[self.ward[q]] = [ID[q], int(discharge[q])]
-                #Introduce the index case
-                discharge = int(numpy.random.choice(self.stay_distribution))              
-                self.beds[self.ward[0]] = ["index", discharge]
+                #Introduce the index case             
+                self.beds[self.ward[0]] = ["index", discharge[0]]
                 self.bed_infected.append(self.ward[0])
                 self.bed_uninfected = self.ward[1:] 
         
@@ -77,10 +77,17 @@ class R0:
                                 #For each uninfected, geometric probability of infection
                                 transmission_array = numpy.random.geometric(self.risk, size=len(self.bed_uninfected))
                                 #keep if success is <= number of infectors
-                                transmission_array[transmission_array > n_infectors] = 0
-                                transmission_events = [j for j, event in enumerate(transmission_array) if event > 0] 
+                                transmission_events = [j for j, event in enumerate(transmission_array) if event <= n_infectors] 
                                 #get bed coordinates of successful transmission events
                                 transmission_bed_coords = [self.bed_uninfected[c] for c in transmission_events]
+                                #get IDs of infected patients from the bed dict
+                                transmission_bed_IDs = [self.beds[d][0] for d in transmission_bed_coords]
+                                #get bed_coords of infectors
+                                infector_bed_coords = [self.bed_infected[f-1] for f in transmission_array if f <= n_infectors]
+                                #get ID of bed-infectors
+                                infector_ID = [self.beds[g][0] for g in infector_bed_coords]
+                                #Zip lists - to give transmission/ contact pairs
+                                self.transmission.append(zip(infector_ID, transmission_bed_IDs))
                                 #Add to bed infected list
                                 self.bed_infected = self.bed_infected +list(transmission_bed_coords)
                                 #Remove from uninfected bed list
@@ -107,7 +114,7 @@ class R0:
                         discharge = numpy.random.choice(self.stay_distribution, size= spares)
                         #Update bed dictionary with new patients
                         for bed in range(spares):
-                                self.beds[remove[bed]] = [ID[bed], int(discharge[bed])]
+                                self.beds[remove[bed]] = [ID[bed], int(discharge[bed]+day)]
                         #add to uninfected list and remove empty beds
                         self.bed_uninfected = self.bed_uninfected + remove
 
