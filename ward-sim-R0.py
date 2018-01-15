@@ -65,7 +65,7 @@ class R0:
                 for q in range(1, len(self.ward)):
                         self.beds[self.ward[q]] = [ID[q], int(discharge[q])]
                 #Introduce the index case             
-                self.beds[self.ward[0]] = ["index", discharge[0]]
+                self.beds[self.ward[0]] = ["index", int(discharge[0])]
                 self.bed_infected.append(self.ward[0])
                 self.bed_uninfected = self.ward[1:] 
         
@@ -114,7 +114,7 @@ class R0:
                         discharge = numpy.random.choice(self.stay_distribution, size= spares)
                         #Update bed dictionary with new patients
                         for bed in range(spares):
-                                self.beds[remove[bed]] = [ID[bed], int(discharge[bed]+day)]
+                                self.beds[remove[bed]] = [ID[bed], int(discharge[bed])+day]
                         #add to uninfected list and remove empty beds
                         self.bed_uninfected = self.bed_uninfected + remove
 
