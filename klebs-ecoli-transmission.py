@@ -47,6 +47,10 @@ class ward:
                 self.new_patients = numpy.random.poisson(entry_rate, n_iterations)
                 self.empty_beds = beds
                 self.occupied_beds = []
+                self.p_klebs_HGT = 0.05
+                self.p_klebs_PMA = 0.05
+                self.p_ecoli_HGT = 0.0005
+                self.p_ecoli_PMA = 0.01
 
         def admit(self):
                 #For each day (iteration)
@@ -79,85 +83,89 @@ class ward:
                                                 #colonised with E. coli on entry and sequence type
                                                 ecoli_entry = numpy.random.binomial(n=1, p=self.entry_risk_ecoli)
                                                 if ecoli_entry==1:
-                                                        ecoli_entry_ST = numpy.random.random_integers(1:300)
+                                                        ecoli_entry_ST = numpy.random.random_integers(1,300)
                                                         self.patients[name][3][ecoli_entry_ST] = ["entry", day]
                                                 #add patient name to occupied bed list
                                                 self.occupied_beds.append(name)
                                         #reduce number of empty beds by number of new patients
                                         self.empty_beds -= new_patients
                        
-                        ## TRANSMISSION ##
-                        klebs_colonised = []
-                        klebs_colonised_ST = []
-                        klebs_uncolonised = []
+                                ## TRANSMISSION ##
+                                klebs_colonised = []
+                                klebs_colonised_ST = []
+                                klebs_uncolonised = []
                         
-                        ecoli_colonised = []
-                        ecoli_colonised_ST = []
-                        ecoli_uncolonised = []
-
-                        for value, key in self.patients.iteritems():
-                                #if colonised with any klebs ST and not discharged
-                                if bool(key[2])==True and key[1] < day:
-                                        klebs_colonised.append(value)
-                                        klebs_colonised_ST.append(numpy.random.choice(key[2].values()))
-                                #else if uncolonised and present in ward
-                                elif bool(key[2])==False and key[1] < day:
-                                        klebs_uncolonised.append(value)
+                                ecoli_colonised = []
+                                ecoli_colonised_ST = []
+                                ecoli_uncolonised = []
+                                for key, value in self.patients.iteritems():
+                                        #if colonised with any klebs ST and not discharged
+                                        if bool(value[2])==True and value[1]>day:
+                                                klebs_colonised.append(key)
+                                                klebs_colonised_ST.append(numpy.random.choice(value[2].keys()))
+                                        #else if uncolonised and present in ward
+                                        elif bool(value[2])==False and value[1]>day:
+                                                klebs_uncolonised.append(key)
                                         
-                                #if colonised with any E. coli ST and not discharged
-                                if bool(key[3]==True and key[1] < day:
-                                        ecoli_colonised.append(value)
-                                        klebs_colonised_ST.append(numpy.random.choice(key[3].values()))
-                                #else if uncolonised and present in ward
-                                elif bool(key[3]==False and key[1] < day:
-                                        ecoli_uncolonised.append(value)
+                                        #if colonised with any E. coli ST and not discharged
+                                        if bool(value[3])==True and value[1]>day:
+                                                ecoli_colonised.append(key)
+                                                ecoli_colonised_ST.append(numpy.random.choice(value[3].keys()))
+                                        #else if uncolonised and present in ward
+                                        elif bool(value[3])==False and value[1]>day:
+                                                ecoli_uncolonised.append(key)
 
-                        #check if any elements in klebs colonised
-                        if len(klebs_colonised) > 0:
-                                #WITHIN HOST TRANSMISSION PROCESS (HORIZONTAL GENE TRANSFER - HGT)
-                                klebs_HGT_outcome = numpy.random.binomial(n=1, p=p_klebs_HGT, size=len(klebs_colonised))
-                                #indexes of successful transmission events (1)
-                                klebs_HGT_index = [outcome for outcome,x in enumerate(klebs_HGT_outcome) if x==1]
-                                #update patient dictionary (klebs -> ecoli)
-                                for j in klebs_HGT_index:
-                                        self.patients[klebs_colonised[j]][3][klebs_colonised_ST[j]] = ["HGT", day] 
+                                #check if any elements in klebs colonised
+                                if klebs_colonised:
+                                        #WITHIN HOST TRANSMISSION PROCESS (HORIZONTAL GENE TRANSFER - HGT)
+                                        klebs_HGT_outcome = numpy.random.binomial(n=1, p=self.p_klebs_HGT, size=len(klebs_colonised))
+                                        #indexes of successful transmission events (1)
+                                        klebs_HGT_index = [o for o,x in enumerate(klebs_HGT_outcome) if x==1]
+                                        #update patient dictionary (klebs -> ecoli)
+                                        for j in klebs_HGT_index:
+                                                self.patients[klebs_colonised[j]][3][klebs_colonised_ST[j]] = ["HGT", day] 
                         
-                                #BETWEEN HOST TRANSMISSION PROCESS (PSEUDO MASS ACTION PRINCIPAL - PMA)
-                                #check for susceptible patients
-                                if len(klebs_uncolonised) > 0:
-                                        #calculate force of infection
-                                        klebs_foi = 1-(1-p_klebs_PMA)^len(klebs_colonised)
-                                        klebs_PMA_outcome = numpy.random.binomial(n=1, p=klebs_foi, size=len(klebs_uncolonised))
-                                        klebs_PMA_index = [outcome for outcome, x in enumerate(klebs_PMA_outcome) if x==1]
-                                        #update patient dictionary with transmission events (klebs -> klebs)
-                                        for j in klebs_PMA_index:
-                                                self.patients[klebs_uncolonised[j]][2][numpy.random.choice(klebs_colonised_ST)] = ["PMA", day]
-                        #check if any elements in ecoli colonised
-                        if len(ecoli_colonised) > 0:
-                                #WITHIN HOST TRANSMISSION PROCESS (HORIZONTAL GENE TRANSFER - HGT)
-                                ecoli_HGT_outcome = numpy.random.binomial(n=1, p=p_ecoli_HGT, size=len(ecoli_colonised))
-                                #indexes of successful transmission events (1)                     
-                                ecoli_HGT_index = [outcome for outcome,x in enumerate(ecoli_HGT_outcome) if x==1]
-                                #update patient dictionary (ecoli -> klebs)
-                                for j in ecoli_HGT_index:
-                                        self.patients[ecoli_colonised[j]][2][ecoli_colonised_ST[j]] = ["HGT", day]
+                                        #BETWEEN HOST TRANSMISSION PROCESS (PSEUDO MASS ACTION PRINCIPAL - PMA)
+                                        #check for susceptible patients
+                                        if len(klebs_uncolonised) > 0:
+                                                #calculate force of infection
+                                                klebs_foi = (1-(1-self.p_klebs_PMA))**len(klebs_colonised)
+                                                klebs_PMA_outcome = numpy.random.binomial(n=1, p=klebs_foi, size=len(klebs_uncolonised))
+                                                klebs_PMA_index = [o for o,x in enumerate(klebs_PMA_outcome) if x==1]
+                                                #update patient dictionary with transmission events (klebs -> klebs)
+                                                if klebs_PMA_index:
+                                                        for j in klebs_PMA_index:
+                                                                self.patients[klebs_uncolonised[j]][2][numpy.random.choice(klebs_colonised_ST)] = ["PMA", day]
+                                #check if any elements in ecoli colonised
+                                if ecoli_colonised:
+                                        #WITHIN HOST TRANSMISSION PROCESS (HORIZONTAL GENE TRANSFER - HGT)
+                                        ecoli_HGT_outcome = numpy.random.binomial(n=1, p=self.p_ecoli_HGT, size=len(ecoli_colonised))
+                                        #indexes of successful transmission events (1)                     
+                                        ecoli_HGT_index = [o for o,x in enumerate(ecoli_HGT_outcome) if x==1]
+                                        #update patient dictionary (ecoli -> klebs)
+                                        if ecoli_HGT_index:
+                                                for j in ecoli_HGT_index:
+                                                        self.patients[ecoli_colonised[j]][2][ecoli_colonised_ST[j]] = ["HGT", day]
 
-                                #BETWEEN HOST TRANSMISSION PROCESS (PSEUDO MASS ACTION PRINCIPAL - PMA)
-                                #check for susceptible patients
-                                if len(ecoli_uncolonised) > 0:
-                                        #calculate force of infection
-                                        ecoli_foi = 1-(1-p_ecoli_PMA)^len(ecoli_colonised)
-                                        ecoli_PMA_outcome = numpy.random.binomial(n=1, p=ecoli_foi, size=len(ecoli_uncolonised))
-                                        ecoli_PMA_index = [outcome for outcome, x in enumerate(klebs_PMA_outcome) if x==1]
-                                        #update patient dictionary with transmission events (ecoli -> ecoli)
-                                        for j in ecoli_PMA_index:
-                                                self.patients[ecoli_uncolonised[j]][3][numpy.random.choice(ecoli_colonised_ST)] = ["PMA", day]
+                                        #BETWEEN HOST TRANSMISSION PROCESS (PSEUDO MASS ACTION PRINCIPAL - PMA)
+                                        #check for susceptible patients
+                                        if ecoli_uncolonised:
+                                                #calculate force of infection
+                                                ecoli_foi = (1-(1-self.p_ecoli_PMA))**len(ecoli_colonised)
+                                                ecoli_PMA_outcome = numpy.random.binomial(n=1, p=ecoli_foi, size=len(ecoli_uncolonised))
+                                                ecoli_PMA_index = [o for o,x in enumerate(ecoli_PMA_outcome) if x==1]
+                                                #update patient dictionary with transmission events (ecoli -> ecoli)
+                                                if ecoli_PMA_index:
+                                                        for j in ecoli_PMA_index:
+                                                                self.patients[ecoli_uncolonised[j]][3][numpy.random.choice(ecoli_colonised_ST)] = ["PMA", day]
 
 
-                        #print str(day) + "\t" + str(self.empty_beds) + "\t" + str(len(self.occupied_beds)) 
+                                #print output to command line
+                                print(str(day) + "\t" + str(len(klebs_uncolonised)) + "\t" + str(len(klebs_colonised)) + "\t" + str(len(ecoli_uncolonised)) + "\t" + str(len(ecoli_colonised))) 
 
 
 #Run model
 run=ward()
-#print("day" + "\t" + "empty_beds" + "\t" + "occupied_beds")
+#print column headers
+print("day" + "\t" + "klebsiella_uncolonised" + "\t" + "klebsiella_colonised" + "\t" + "ecoli_uncolonised" + "\t" + "ecoli_colonised")
 run.admit()
