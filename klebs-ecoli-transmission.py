@@ -15,7 +15,13 @@ parser = argparse.ArgumentParser(description="Agent Based Model of AMR introduct
 parser.add_argument('-l', '--lengthofstay', default=None, required=False, dest="los",metavar="",help="Path to file where each line is length of stay (days)")
 parser.add_argument('-i', '--iterations', default=350, required=False, dest="iter", metavar="", help="Number of model iterations (days)")
 parser.add_argument('-b', '--beds', default =8, required=False, dest="beds", metavar="", help="Number of beds in ward") 
-parser.add_argument('-e', '--entryrate', default =3, required=False, dest="entry", metavar="", help="Entry rate of patients per day (Poisson rate parameter")
+parser.add_argument('-r', '--entryrate', default =3, required=False, dest="entry", metavar="", help="Entry rate of patients per day (Poisson rate parameter")
+parser.add_argument('-k', '--hgtkleb', default=0.05, required=False, dest="HGT_kleb", metavar="", help="Probability of horizontal gene tranfer from K. pneumoniae to E. coli")
+parser.add_argument('-p','--masskleb', default=0.05, required=False, dest="PMA_kleb", metavar="", help="Probability of person-to-person transmission of K. pneumoniae")
+parser.add_argument('-e', '--hgtecoli', default= 0.0005, required=False, dest="HGT_ecoli", metavar="", help="Probability of horizontal gene transfer from E. coli to K. pneumoniae")
+parser.add_argument('-c', '--massecoli', default=0.01, required=False, dest="PMA_ecoli", metavar="", help="Probability of person-to-person transmission of E. coli")
+parser.add_argument('-x', '--importkleb', default=0.4, required=False, dest="import_kleb", metavar="", help="Probability that patient is colonized with K. pneumoniae on admission (imported case)")
+parser.add_argument('-y', '--importecoli', default=0.3, required=False, dest="import_ecoli", metavar="", help="Probability that patient is colonized with E. coli on admission (imported case)")
 args = parser.parse_args()
 
 #Collect arguments passed from the command line
@@ -23,6 +29,10 @@ los = args.los
 n_iterations = int(args.iter)+1
 beds= int(args.beds)
 entry_rate = int(args.entry)
+HGT_klebs = float(args.HGT_kleb)
+PMA_klebs = float(args.PMA_kleb)
+HGT_ecoli = float(args.HGT_ecoli)
+PMA_ecoli = float(args.PMA_ecoli)
 
 #Process input lengths of stay
 los_dist = []
@@ -36,7 +46,7 @@ else:
         los_dist = [3, 4, 3, 5, 12, 29, 12, 4, 6, 5, 22, 4, 5, 16, 11, 9, 4, 5, 5, 5, 6, 4, 10, 66, 4, 6, 4, 8, 4, 12, 14, 3, 5, 5, 8, 10, 9, 8, 16, 38, 3, 5, 47, 15, 9, 3, 3, 5, 7, 7, 9, 4, 7, 4, 5, 3, 2, 3, 3, 9, 11, 28, 21, 7, 4, 17, 8, 5, 6, 5, 4, 4, 1, 6, 20, 13, 11, 7, 8, 19, 5, 22, 8, 18, 6, 9, 5, 4, 6, 6, 19, 17, 5, 3, 11, 26, 3, 12, 7, 7, 11, 8, 21, 6, 8, 4, 4, 31, 11, 3, 6, 14, 10, 3, 11, 6, 12, 5, 14, 6, 5, 5, 7, 3, 6, 3, 3, 6, 8, 2, 4, 10, 6, 11, 51, 11, 2, 11, 3, 15, 4, 56, 8, 3, 4, 27, 3, 8, 18, 3, 10, 7, 19, 6, 3, 3, 5, 16, 8, 4, 16, 5, 58, 3, 3, 2, 34, 13, 4, 3, 8, 2, 5, 9, 10, 3, 4, 4, 19, 6, 8, 8, 7, 8, 10, 3, 8, 1, 14, 2, 5, 8, 7, 3, 7, 9, 5, 3, 3, 3, 2, 2, 43, 8, 4, 40, 7, 4, 3, 60, 7, 9, 3, 3, 10, 6, 2, 9, 4, 8, 4, 4, 2, 2, 3, 4, 5, 5, 5, 32, 11, 3, 8, 4, 3, 2, 3, 5, 9, 3, 6, 4, 5, 25, 7, 6, 5, 20, 4, 5, 3, 54, 6, 32, 20, 6, 4, 6, 3, 7, 3, 6, 4, 4, 20, 17, 16, 3, 12, 27, 31, 5, 48, 5, 3, 3, 10, 6, 6, 5, 4, 8, 37, 8, 3, 8, 7, 4, 4, 3, 10, 20, 3, 3, 10, 4, 5, 20, 3, 29, 5, 3, 2, 15, 7, 25, 3, 30, 42, 21, 57, 41, 3, 3, 5, 13, 5, 5, 20, 5, 34, 4, 4, 4, 6, 8, 27, 14, 5, 5, 54, 34, 22]
 
 class ward:
-        def __init__(self, n_iterations=n_iterations, entry_rate=entry_rate, beds=beds, los_dist=los_dist):
+        def __init__(self, n_iterations=n_iterations, entry_rate=entry_rate, beds=beds, los_dist=los_dist, HGT_klebs=HGT_klebs, PMA_klebs=PMA_klebs, HGT_ecoli=HGT_ecoli, PMA_ecoli=PMA_ecoli):
                 self.n_iterations = n_iterations
                 self.los = numpy.array(los_dist)
                 self.patients = {}
@@ -47,10 +57,10 @@ class ward:
                 self.new_patients = numpy.random.poisson(entry_rate, n_iterations)
                 self.empty_beds = beds
                 self.occupied_beds = []
-                self.p_klebs_HGT = 0.05
-                self.p_klebs_PMA = 0.05
-                self.p_ecoli_HGT = 0.0005
-                self.p_ecoli_PMA = 0.01
+                self.p_klebs_HGT = HGT_klebs
+                self.p_klebs_PMA = PMA_klebs
+                self.p_ecoli_HGT = HGT_ecoli
+                self.p_ecoli_PMA = PMA_ecoli
 
         def admit(self):
                 #For each day (iteration)
