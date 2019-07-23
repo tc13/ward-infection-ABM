@@ -24,3 +24,5 @@ To use the values estimated from the model (n=2000) in a loop, where each of the
 Options such as -x (the proportion of infants who are colonised on first admission) can be altered to replicate the analysis for Figure 4 in the text.
 
 Note that the default in intervention_simulation.py is to use the empirical length of stay distribution observed in the study, however the user can specify a different distribution in the form of a file where each LOS values is an integer on a seperate line with the -l option.
+
+For any comments on this code, please contact me on thomas.crellen@ndm.ox.ac.uk or tomcrellen@gmail.com. The code is my own, the original dataset is the property of Prof Ben Cooper, Prof Paul Turner and Dr Claudia Turner.
